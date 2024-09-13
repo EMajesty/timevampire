@@ -1,8 +1,15 @@
 extern crate glfw;
 use glfw::Context;
 
+use glfw::ffi::glfwGetTime;
+
 extern crate gl;
-use gl::types::*;
+// use gl::types::*;
+
+use gl::GetUniformLocation;
+use gl::Uniform4f;
+
+use std::ffi::CString;
 
 use load_file::load_str;
 
@@ -121,8 +128,24 @@ fn main() {
 
             gl::UseProgram(shader_program);
             gl::BindVertexArray(vao);
-            gl::DrawArrays(gl::TRIANGLES, 0, 3);
-            gl::BindVertexArray(0);
+
+
+
+        // update the uniform color
+        let timeValue: f32 = glfwGetTime() as f32;
+        let greenValue = timeValue.sin() / 2.0 + 0.5;
+        
+        unsafe {
+            let c_string = CString::new("vertexColor").unwrap();
+            let vertexColor: *const i8 = c_string.as_ptr();
+       
+            let vertexColorLocation = GetUniformLocation(shader_program, vertexColor);
+            Uniform4f(vertexColorLocation, 0.0, greenValue, 0.0, 1.0);
+        }
+
+        gl::DrawArrays(gl::TRIANGLES, 0, 3);
+
+        gl::BindVertexArray(0);
         }
 
         window.swap_buffers();
