@@ -132,16 +132,14 @@ fn main() {
 
 
         // update the uniform color
-        let timeValue: f32 = glfwGetTime() as f32;
-        let greenValue = timeValue.sin() / 2.0 + 0.5;
+        let time_value: f32 = glfwGetTime() as f32;
+        let green_value = time_value.sin() / 2.0 + 0.5;
         
-        unsafe {
-            let c_string = CString::new("vertexColor").unwrap();
-            let vertexColor: *const i8 = c_string.as_ptr();
-       
-            let vertexColorLocation = GetUniformLocation(shader_program, vertexColor);
-            Uniform4f(vertexColorLocation, 0.0, greenValue, 0.0, 1.0);
-        }
+        let c_string = CString::new("vertexColor").unwrap();
+        let vertex_color: *const i8 = c_string.as_ptr();
+    
+        let vertex_color_location = GetUniformLocation(shader_program, vertex_color);
+        Uniform4f(vertex_color_location, 0.0, green_value, 0.0, 1.0);
 
         gl::DrawArrays(gl::TRIANGLES, 0, 3);
 
