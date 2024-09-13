@@ -1,7 +1,14 @@
-extern crate glfw;
-use glfw::Context;
-
-use glfw::ffi::glfwGetTime;
+// extern crate glfw;
+// use glfw::Context;
+//
+// use glfw::ffi::glfwGetTime;
+//
+extern crate sdl2;
+use sdl2::pixels::Color;
+use sdl2::event::Event;
+use sdl2::keyboard::Keycode;
+use sdl2::sys::SDL_GetTicks;
+use std::time::Duration;
 
 extern crate gl;
 // use gl::types::*;
@@ -18,25 +25,27 @@ const SCR_HT: u32 = 600;
 const TITLE: &str = "Hell World";
 
 fn main() {
-    let mut glfw = glfw::init(glfw::fail_on_errors).unwrap();
+    let sdl_context = sdl2::init().unwrap();
+    let video_subsystem = sdl_context.video().unwrap();
 
-    let (mut window, events) = glfw.create_window(SCR_WT, SCR_HT, TITLE, glfw::WindowMode::Windowed)
-        .expect("Failed to create window");
-    let (screen_width, screen_height) = window.get_framebuffer_size();
+    let window = video_subsystem.window(TITLE, SCR_WT, SCR_HT)
+        .position_centered()
+        .build()
+        .unwrap();
 
-    window.make_current();
-    window.set_key_polling(true);
+    let mut canvas = window.into_canvas().build().unwrap();
+
+    let (screen_width, screen_height) = canvas.window().size();
 
     // Load gl functions
-    gl::load_with(|ptr| window.get_proc_address(ptr) as *const _);
+    gl::load_with(|s| video_subsystem.gl_get_proc_address(s) as *const _);
 
     unsafe {
-        gl::Viewport(0, 0, screen_width, screen_height);
-        gl::ClearColor(0.3, 0.4, 0.6, 1.0);
+        gl::Viewport(0, 0, screen_width as i32, screen_height as i32);
     }
 
-    let vertex_shader_src: &str = load_str!("vertex.glsl");
-    let fragment_shader_src: &str = load_str!("fragment.glsl");
+    let vertex_shader_src: &str = load_str!(".vert");
+    let fragment_shader_src: &str = load_str!(".frag");
 
     let vertex_shader = unsafe { gl::CreateShader(gl::VERTEX_SHADER) };
     unsafe {
@@ -78,6 +87,7 @@ fn main() {
 
         let mut success = 0;
         gl::GetProgramiv(shader_program, gl::LINK_STATUS, &mut success);
+
         if success == 0 {
             let mut v: Vec<u8> = Vec::with_capacity(1024);
             let mut log_len = 0_i32;
@@ -85,6 +95,7 @@ fn main() {
             v.set_len(log_len.try_into().unwrap());
             panic!("Program link error: {}", String::from_utf8_lossy(&v));
         }
+
         gl::DetachShader(shader_program, vertex_shader);
         gl::DetachShader(shader_program, fragment_shader);
         gl::DeleteShader(vertex_shader);
@@ -114,13 +125,24 @@ fn main() {
         gl::BindVertexArray(0);
     }
 
-    while !window.should_close() {
-        glfw.poll_events();
+    let mut event_pump = sdl_context.event_pump().unwrap();
+    let mut i = 0;
 
-        for (_, event) in glfw::flush_messages(&events) {
-            glfw_handle_event(&mut window, event)
+    'running: loop {
+        i = (i + 1) % 255;
+        canvas.set_draw_color(Color::RGB(i, 64, 255 -i));
+        canvas.clear();
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit {..} |
+                Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                    break 'running
+                },
+                _ => {}
+            }
         }
 
+        // Game loop
         unsafe {
             gl::ClearColor(0.3, 0.4, 0.6, 1.0);
 
@@ -131,36 +153,24 @@ fn main() {
 
 
 
-        // update the uniform color
-        let time_value: f32 = glfwGetTime() as f32;
-        let red_value = time_value.sin() / 2.0 + 0.5;
-        let green_value = -time_value.sin() / 2.0 + 0.5;
-        let blue_value = time_value * time_value.sin() / 2.0 + 0.5;
+            // update the uniform color
+            let time_value: f32 = SDL_GetTicks() as f32;
+            let red_value = time_value.sin() / 2.0 + 0.5;
+            let green_value = -time_value.sin() / 2.0 + 0.5;
+            let blue_value = time_value * time_value.sin() / 2.0 + 0.5;
+            
+            let c_string = CString::new("vertexColor").unwrap();
+            let vertex_color: *const i8 = c_string.as_ptr();
         
-        let c_string = CString::new("vertexColor").unwrap();
-        let vertex_color: *const i8 = c_string.as_ptr();
-    
-        let vertex_color_location = GetUniformLocation(shader_program, vertex_color);
-        Uniform4f(vertex_color_location, red_value, green_value, blue_value, 1.0);
+            let vertex_color_location = GetUniformLocation(shader_program, vertex_color);
+            Uniform4f(vertex_color_location, red_value, green_value, blue_value, 1.0);
 
-        gl::DrawArrays(gl::TRIANGLES, 0, 3);
+            gl::DrawArrays(gl::TRIANGLES, 0, 3);
 
-        gl::BindVertexArray(0);
+            gl::BindVertexArray(0);
         }
 
-        window.swap_buffers();
-    }
-}
-
-fn glfw_handle_event(window: &mut glfw::Window, event: glfw::WindowEvent) {
-    use glfw::WindowEvent as Event;
-    use glfw::Key;
-    use glfw::Action;
-
-    match event {
-        Event::Key(Key::Escape, _, Action::Press, _) => {
-            window.set_should_close(true);
-        },
-        _ => {},
+        canvas.present();
+        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
 }
